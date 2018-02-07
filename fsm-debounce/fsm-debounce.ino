@@ -166,9 +166,9 @@ event _sendDataToUbidots(void) {
   if(!humPub || !tempPub) {
     
     if(VERBOSE_ERRORS){
-      Serial.print("-> Failed to publish data to UBIDOTS server: humidity -> ");
+      Serial.print("-> Failed to publish data to UBIDOTS server: humidityRequestStatus -> ");
       Serial.print(humPub);
-      Serial.print(" ; temperature -> ");
+      Serial.print(" ; temperatureRequestStatus -> ");
       Serial.println(tempPub);
     }
     

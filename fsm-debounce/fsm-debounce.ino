@@ -20,7 +20,7 @@ PubSubClient client(espClient);
 const int buttonPin = D7;    // definicao do pino utilizado pelo botao
 const int ledPin = D5;       // definicao do pino utilizado pelo led
 
-bool VERBOSE_ERRORS = true;  // Variavel que define se todos os erros serão printados no serial Monitor
+bool VERBOSE_ERRORS = false;  // Variavel que define se todos os erros serão printados no serial Monitor
 
 String humRequestObj;        // string com obj de request para humidade
 String tempRequestObj;       // string com obj de request para temperatura
@@ -117,8 +117,6 @@ event coleta_btn_state(void){
 
   humRequestObj = "{\"value\":" + hum_str + "}";
   tempRequestObj = "{\"value\":" + temp_str + "}";
-
-  // Função que retorna um evento e verifica se alguma das duas requisições ao Ubidots falhou. Se sim, retorna a verificação de conexão wifi se a placa não estiver conectada
   
   return _sendDataToUbidotsBTN();
 
@@ -175,7 +173,10 @@ event _sendDataToUbidots(void) {
   }
   if(repeatingState){
     repeatingState = false;
-    Serial.println("--> State repeat completed successfully");
+    
+    if(VERBOSE_ERRORS) {
+      Serial.println("--> State repeat completed successfully");  
+    }
   }
   return goto_led;
 }
@@ -191,7 +192,10 @@ event _sendDataToUbidotsBTN(void) {
   } else if(client.publish("/v1.6/devices/jualabs-projeto/counter", "{\"value\":1}")) {
     if(repeatingState){
       repeatingState = false;
-      Serial.println("--> State repeat completed successfully");
+      
+      if(VERBOSE_ERRORS) {
+        Serial.println("--> State repeat completed successfully");  
+      }
     }
     return goto_led;
     

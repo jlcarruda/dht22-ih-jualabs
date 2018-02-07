@@ -82,18 +82,18 @@ event start_state(void) {
       Serial.println("-> Button Pressed");
       btnPressed = true;
       return coleta_btn;
-    } else if (secCounter == 20){
+    } else if (secCounter == 40){
       Serial.println();  
       secCounter = 0;
       return coleta_time;
       break;
-    } else if (secCounter % 2 == 0) {
+    } else if (secCounter % 4 == 0) {
       Serial.print(".");
     }
 
     
     
-    delay(500);
+    delay(250);
     secCounter = secCounter + 1;
   }
 }

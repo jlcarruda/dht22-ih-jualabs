@@ -27,8 +27,10 @@ String tempRequestObj;       // string com obj de request para temperatura
 bool repeatingState = false; // Flag que demonstra se o estado atual veio de um evento de repetição
 float hum;
 float temp;
-int buttonState = LOW;             // armazena a leitura atual do botao
-int lastButtonState = LOW;         // armazena a leitura anterior do botao
+
+//int buttonState = LOW;             // armazena a leitura atual do botao
+int lastButtonState;         // armazena a leitura anterior do botao
+
 unsigned long lastDebounceTime = 0;  // armazena a ultima vez que a leitura da entrada variou
 unsigned long debounceDelay = 50;    // tempo utilizado para implementar o debounce
 
@@ -69,8 +71,13 @@ event start_state(void) {
 
   
   while(!btnPressed) {
-    int buttonState = digitalRead(buttonPin);  
-    if(buttonState == 1){
+    int buttonState = digitalRead(buttonPin);
+
+    if(buttonState == 0 && lastButtonState == 1){
+       lastButtonState = 0;
+    } 
+    if(buttonState == 1 && lastButtonState == 0){
+      lastButtonState = 1;
       Serial.println();  
       Serial.println("-> Button Pressed");
       btnPressed = true;
@@ -83,6 +90,8 @@ event start_state(void) {
     } else if (secCounter % 2 == 0) {
       Serial.print(".");
     }
+
+    
     
     delay(500);
     secCounter = secCounter + 1;

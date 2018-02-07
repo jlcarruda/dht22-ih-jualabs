@@ -21,8 +21,8 @@ typedef enum state_ {wifi_check, server_check, start, coletaBtn, coleta, led, em
 state state_transitions[NUM_STATES][NUM_EVENTS] = {{wifi_check, server_check, empty, empty, empty, empty, start, empty, wifi_check}, //wifi check
                                                    {empty, empty, wifi_check, start, empty, empty, empty, start, server_check}, //server check
                                                    {empty, empty, empty, empty, coletaBtn, coleta, empty, start, start}, //start
-                                                   {empty,empty,empty,empty, empty, empty, led, start, coletaBtn}, // coleta btn
-                                                   {empty,empty,empty,empty, empty, empty, led, start, coleta}, // coleta
+                                                   {wifi_check, empty, wifi_check, coletaBtn, empty, empty, led, start, coletaBtn}, // coleta btn
+                                                   {wifi_check, empty, wifi_check, coleta, empty, empty, led, start, coleta}, // coleta
                                                    {empty,empty,empty,empty, empty, empty, empty, start, led}, // led
                                                    {empty,empty,empty,empty, empty, empty, empty, empty, empty}}; // empty
 // definicao dos estados inicial e final

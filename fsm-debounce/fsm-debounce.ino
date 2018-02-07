@@ -6,6 +6,7 @@
 
 #define DHTPIN D3
 #define DHTTYPE DHT22   // DHT 22  (AM2302)
+#define MQTT_KEEPALIVE 5000
 
 DHT dht(DHTPIN, DHTTYPE);
 
@@ -19,6 +20,11 @@ PubSubClient client(espClient);
 const int buttonPin = D7;    // definicao do pino utilizado pelo botao
 const int ledPin = D5;       // definicao do pino utilizado pelo led
 
+bool VERBOSE_ERRORS = true;  // Variavel que define se todos os erros serão printados no serial Monitor
+
+String humRequestObj;        // string com obj de request para humidade
+String tempRequestObj;       // string com obj de request para temperatura
+bool repeatingState = false; // Flag que demonstra se o estado atual veio de um evento de repetição
 float hum;
 float temp;
 int buttonState = LOW;             // armazena a leitura atual do botao
@@ -40,26 +46,23 @@ event wifi_check_state(void) {
     Serial.print("Connected to ");
     Serial.println(ssid);
     return wifi_connected;
-  }
-  
+  }  
 }
 
-// So entra se wifi_connected
 event server_check_state(void) {
   Serial.println("Server Check State");
   client.setServer(mqtt_server, 1883);
   if (client.connect("ESP8266Client", "A1E-MNEtItlUDrfu1LHwVdPXnqFrnPHvBA", "")) {
     if(client.connected()){
       return server_connected;
-    } else {
-      return server_not_connected;  // retorna pro wifi_check_state
-    }
-  }
+    } 
+  } 
+  
+  return server_not_connected; 
 }
 
 event start_state(void) {
   Serial.println("Start State");
-  Serial.println(dht.readHumidity());
   
   bool btnPressed = false;
   int secCounter = 0;
@@ -68,11 +71,11 @@ event start_state(void) {
   while(!btnPressed) {
     int buttonState = digitalRead(buttonPin);  
     if(buttonState == 1){
-      Serial.println("button state pressed");
+      Serial.println("-> Button Pressed");
       btnPressed = true;
       return coleta_btn;
     } else if (secCounter == 20){
-      Serial.println("time event");
+      
       secCounter = 0;
       return coleta_time;
       break;
@@ -81,14 +84,6 @@ event start_state(void) {
     delay(500);
     secCounter = secCounter + 1;
   }
-
-  
-//  Serial.println("Start State");
-//  digitalWrite(ledPin, HIGH);
-//  delay(1000);
-//  digitalWrite(ledPin, LOW);
-//  delay(5000);
-//  return repeat;
 }
 
 
@@ -96,50 +91,34 @@ event coleta_state(void) {
   //Serial.println("Coleta");
   hum=dht.readHumidity();
   temp=dht.readTemperature();
+  String hum_str = String(hum);
+  String temp_str = String(temp);
+  
+  printHumTemp();
+  
+  humRequestObj = "{\"value\":" + hum_str + "}";
+  tempRequestObj = "{\"value\":" + temp_str + "}";
 
-  char valueHum[12];
-  char valueTemp[12];
+  // Função que retorna um evento e verifica se alguma das duas requisições ao Ubidots falhou. Se sim, retorna a verificação de conexão wifi se a placa não estiver conectada
+  return _sendDataToUbidots();
   
-  Serial.print("Humidity: ");
-  Serial.print(hum);
-  Serial.print(" %, Temp: ");
-  Serial.print(temp);
-  Serial.println(" Celsius");
-
-  dtostrf(hum, 7, 3, valueHum);
-  dtostrf(temp, 7, 3, valueTemp);
-  
-//  sprintf(valueHum, "%f", hum);
-//  sprintf(valueTemp, "%f", temp);
-  Serial.println(strcat("value ", valueHum));
-//  client.publish("/v1.6/devices/jualabs-projeto/humidity", valueHum);
-//  client.publish("/v1.6/devices/jualabs-projeto/temperature", valueTemp);
-  
-  return goto_led;
 }
 
 event coleta_btn_state(void){
-  Serial.println("ColetaBTN");
   hum=dht.readHumidity();
   temp=dht.readTemperature();
-
-  char valueHum[50];
-  char valueTemp[50];
+  String hum_str = String(hum);
+  String temp_str = String(temp);
   
-  Serial.print("Humidity: ");
-  Serial.print(hum);
-  Serial.print(" %, Temp: ");
-  Serial.print(temp);
-  Serial.println(" Celsius");
+  printHumTemp();
 
-  sprintf(valueHum, "%f", hum);
-  sprintf(valueTemp, "%f", temp);
+  humRequestObj = "{\"value\":" + hum_str + "}";
+  tempRequestObj = "{\"value\":" + temp_str + "}";
 
-  //client.publish("/v1.6/devices/jualabs-projeto/humidity", valueHum);
-  //client.publish("/v1.6/devices/jualabs-projeto/temperature", valueTemp);
-//  client.publish("/v1.6/devices/jualabs-projeto/counter", "{\"value\":1}")
+  // Função que retorna um evento e verifica se alguma das duas requisições ao Ubidots falhou. Se sim, retorna a verificação de conexão wifi se a placa não estiver conectada
   
-  return goto_led;
+  return _sendDataToUbidotsBTN();
+
 }
 
 event led_on_state(void) {
@@ -152,8 +131,130 @@ event led_on_state(void) {
 }
 
 event empty_state(void) {
-  Serial.println("Empty State");
+  Serial.println("Empty State - Algo deu errado!");
   return repeat;
+}
+
+// ======== Utility Functions ========
+
+// Função que imprime valores no Serial Monitor
+void printHumTemp(void) {
+  if(!repeatingState){
+    Serial.print("Humidity: ");
+    Serial.print(hum);
+    Serial.print(" %, Temp: ");
+    Serial.print(temp);
+    Serial.println(" Celsius");  
+  }
+}
+
+// Função que retorna evento de acordo com conexão/resposta do servidor Ubidots para requisições sem o envio do botão
+event _sendDataToUbidots(void) {
+  // Verifica se alguma das duas requisições ao Ubidots falhou. Se sim, retorna a verificação de conexão wifi se a placa não estiver conectada
+  bool humPub = client.publish("/v1.6/devices/jualabs-projeto/humidity", humRequestObj.c_str());
+  bool tempPub = client.publish("/v1.6/devices/jualabs-projeto/temperature", tempRequestObj.c_str());
+  if(!humPub || !tempPub) {
+    
+    if(VERBOSE_ERRORS){
+      Serial.print("-> Failed to publish data to UBIDOTS server: humidity -> ");
+      Serial.print(humPub);
+      Serial.print(" ; temperature -> ");
+      Serial.println(tempPub);
+    }
+    
+    if(!client.connected()){
+      _MQTTErrorHandler();
+      repeatingState = true;
+      return repeat;
+    } else {
+      return _MQTTErrorHandler();
+    }
+  }
+  if(repeatingState){
+    repeatingState = false;
+    Serial.println("--> State repeat completed successfully");
+  }
+  return goto_led;
+}
+
+// Mesma função que _sendDataToUbidots, mas com o envio do valor de contador para o botão
+event _sendDataToUbidotsBTN(void) {
+  event serverReturn = _sendDataToUbidots();
+  bool btnPub = client.publish("/v1.6/devices/jualabs-projeto/counter", "{\"value\":1}");
+  
+  if(serverReturn != goto_led){
+    return serverReturn;
+    
+  } else if(client.publish("/v1.6/devices/jualabs-projeto/counter", "{\"value\":1}")) {
+    if(repeatingState){
+      repeatingState = false;
+      Serial.println("--> State repeat completed successfully");
+    }
+    return goto_led;
+    
+  } else if(!client.connected()) {
+    _MQTTErrorHandler();
+    repeatingState = true;
+    return repeat;  
+  
+  } else {
+    return _MQTTErrorHandler();
+  }
+  
+}
+
+// Função que faz o handling de erros que podem ocorrer ao tentar se conectar com UBIDOTS
+event _MQTTErrorHandler(void) {
+    String error;
+    int state = client.state();
+    if(state == MQTT_CONNECTION_TIMEOUT){
+      error = "--> Cause: Connection Timeout to server ...";
+      
+    } else if (state == MQTT_CONNECTION_LOST){
+      error = "--> Cause: Connection Lost. Reconnecting to Client and repeating state ...";
+      if(VERBOSE_ERRORS){
+        Serial.println(error);  
+      }
+      return _clientConnect();
+   
+    } else if (state == MQTT_CONNECT_FAILED){
+      error = "--> Cause: Failed to Connect ..." ;
+    
+    } else if (state == MQTT_DISCONNECTED){
+      error = "--> Cause: Disconnected from server ...";
+    
+    } else if (state == MQTT_CONNECT_BAD_PROTOCOL){
+      error = "--> Cause: Server doesn't support MQTT version ...";
+    
+    } else if (state == MQTT_CONNECT_BAD_CLIENT_ID){
+      error = "--> Cause: Server Rejected client ID ...";
+    
+    } else if (state == MQTT_CONNECT_UNAVAILABLE){
+      error = "--> Cause: Server was unable to accept connection ...";
+    
+    } else if (state == MQTT_CONNECT_BAD_CREDENTIALS){
+      error = "--> Cause: Wrong Credentials ...";
+    
+    } else if (state == MQTT_CONNECT_UNAUTHORIZED){
+      error = "--> Cause: Client wasn't authorized to connect ...";
+    
+    } else {
+      error = "---> Cause: Unknown Error ... ";  
+    }
+  
+    if(VERBOSE_ERRORS){
+      Serial.println(error);  
+    }
+    return wifi_not_connected; // Retorna para o estado de checagem de Wifi
+}
+
+event _clientConnect(void){
+  if (client.connect("ESP8266Client", "A1E-MNEtItlUDrfu1LHwVdPXnqFrnPHvBA", "")) {
+    if(client.connected()){
+      return server_connected;
+    } 
+  }
+     return server_not_connected;
 }
 
 // variaveis que armazenam estado atual, evento atual e funcao de tratamento do estado atual
@@ -161,29 +262,7 @@ state cur_state = ENTRY_STATE;
 event cur_evt;
 event (* cur_state_function)(void);
 
-//// implementacao de funcoes auxiliares
-//int read_button() {
-//  int reading = digitalRead(buttonPin);
-//
-//  if (reading != lastButtonState) {
-//    lastDebounceTime = millis();
-//  }
-//  
-//  lastButtonState = reading;
-//  
-//  if ((millis() - lastDebounceTime) > debounceDelay) {
-//    if (reading != buttonState) {
-//      buttonState = reading;
-//      if (buttonState == HIGH) {
-//        return true;
-//      }
-//    }
-//  }
-//  return false;
-//}
-
 void setup() {
-  
   Serial.begin(9600);
   pinMode(buttonPin, INPUT);
   pinMode(ledPin, OUTPUT);

@@ -62,7 +62,7 @@ event server_check_state(void) {
 }
 
 event start_state(void) {
-  Serial.println("Start State");
+//  Serial.println("Start State");
   
   bool btnPressed = false;
   int secCounter = 0;

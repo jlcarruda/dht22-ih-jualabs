@@ -71,14 +71,17 @@ event start_state(void) {
   while(!btnPressed) {
     int buttonState = digitalRead(buttonPin);  
     if(buttonState == 1){
+      Serial.println();  
       Serial.println("-> Button Pressed");
       btnPressed = true;
       return coleta_btn;
     } else if (secCounter == 20){
-      
+      Serial.println();  
       secCounter = 0;
       return coleta_time;
       break;
+    } else if (secCounter % 2 == 0) {
+      Serial.print(".");
     }
     
     delay(500);
